@@ -14,54 +14,70 @@
   #conn.on { color:var(--go); }
   button { font:inherit; font-size:15px; padding:10px 14px; border:0; border-radius:10px; background:#2a333b; color:var(--fg); cursor:pointer; }
   button.pri { background:var(--acc); color:#001018; font-weight:bold; }
+  button.go { background:var(--go); color:#00140a; font-weight:bold; }
+  button.ng { background:#4a2326; color:#ffd7d8; }
   button:disabled { opacity:.35; cursor:default; }
-  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
-  main { padding:12px 16px 32px; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
-  #nobt { display:none; background:#3a1d1f; padding:10px; border-radius:8px; font-size:14px; }
+  button:focus-visible, a:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  main { padding:12px 16px 32px; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+  .note { background:#3a1d1f; padding:10px; border-radius:8px; font-size:14px; }
+  .card { background:var(--card); border-radius:12px; padding:12px 14px; }
+  .tabs { display:flex; gap:6px; }
+  .tab { flex:1; background:transparent; border:1px solid var(--line); color:var(--dim); }
+  .tab.on { background:var(--card); color:var(--fg); border-color:var(--acc); }
 
-  .status { display:flex; align-items:center; gap:12px; background:var(--card); border-radius:12px; padding:12px 14px; }
-  .status .lamp { width:14px; height:14px; border-radius:50%; background:var(--dim); flex:none; }
-  .status.signal .lamp { background:var(--warn); animation:blink .3s infinite alternate; }
-  .status.run .lamp { background:var(--go); }
+  .opts { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; font-size:15px; }
+  .opts label { display:flex; align-items:center; gap:8px; }
+  .opts input[type=number] { width:4.5em; font-size:18px; padding:6px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); text-align:center; }
+  .opts input[type=checkbox] { width:20px; height:20px; }
+
+  .state { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--dim); }
+  .lamp { width:12px; height:12px; border-radius:50%; background:var(--dim); flex:none; }
+  .state.standby .lamp { background:var(--acc); }
+  .state.signal .lamp { background:var(--warn); animation:blink .3s infinite alternate; }
+  .state.running .lamp { background:var(--go); }
   @keyframes blink { to { opacity:.2; } }
-  @media (prefers-reduced-motion:reduce) { .status.signal .lamp { animation:none; } }
-  .status .txt { flex:1; font-size:15px; }
-  .status .clock { font-size:22px; font-variant-numeric:tabular-nums; font-weight:bold; }
+  @media (prefers-reduced-motion:reduce) { .state.signal .lamp { animation:none; } }
+  .time { font-size:clamp(48px,17vw,88px); font-weight:bold; font-variant-numeric:tabular-nums; text-align:center; line-height:1.1; margin:6px 0 2px; }
+  .sub { text-align:center; font-size:15px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .sub b { color:var(--fg); }
+  .btns { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-top:12px; }
+  .btns button { padding:14px 6px; font-size:16px; }
 
-  .controls { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; }
-  .controls button { padding:14px 8px; font-size:16px; }
-  #btnStart { background:var(--go); color:#00140a; font-weight:bold; font-size:18px; }
-
-  .lanes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
-  .lane { background:var(--card); border-radius:12px; padding:10px 8px; text-align:center; border:2px solid transparent; transition:border-color .3s; }
-  .lane.flash { border-color:var(--acc); transition:none; }
-  .lane.off { opacity:.45; }
-  .lane .n { font-size:12px; color:var(--dim); }
-  .lane .laps { font-size:13px; margin-top:2px; }
-  .lane .last { font-size:clamp(20px,7vw,34px); font-weight:bold; font-variant-numeric:tabular-nums; margin:4px 0 2px; }
-  .lane .best { font-size:12px; color:var(--best); font-variant-numeric:tabular-nums; }
-
-  section h2 { font-size:13px; color:var(--dim); margin:0 0 6px; font-weight:normal; letter-spacing:.05em; }
   table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  th,td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:right; font-size:15px; }
+  th,td { padding:6px 6px; border-bottom:1px solid var(--line); text-align:right; font-size:15px; }
   th { color:var(--dim); font-weight:normal; font-size:12px; }
   td:first-child,th:first-child { text-align:left; }
-  tr.best td { color:var(--best); font-weight:bold; }
+  tr.best td.lap { color:var(--best); font-weight:bold; }
   .empty { color:var(--dim); font-size:14px; padding:8px 0; }
-  .lapwrap { max-height:40vh; overflow-y:auto; background:var(--card); border-radius:12px; padding:4px 8px; }
 
-  details { background:var(--card); border-radius:12px; padding:10px 14px; }
-  summary { cursor:pointer; font-size:14px; color:var(--dim); }
-  .set { display:grid; grid-template-columns:7em minmax(0,1fr) 3.5em; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  .verdict { border:2px solid var(--warn); }
+  .verdict h2 { font-size:16px; margin:0 0 4px; }
+  .verdict p { margin:0 0 8px; font-size:14px; color:var(--dim); }
+  .verdict textarea { width:100%; font:inherit; font-size:16px; padding:8px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); }
+  .vbtns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:8px; }
+  .vbtns button { padding:14px 6px; }
+
+  .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+  .stat { background:#11161b; border-radius:8px; padding:8px 6px; text-align:center; }
+  .stat .k { font-size:11px; color:var(--dim); }
+  .stat .v { font-size:17px; font-weight:bold; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .hist td.res { font-size:13px; }
+  .hist .ok { color:var(--go); } .hist .co { color:var(--ng); }
+  .hist .laps { display:block; font-size:12px; color:var(--dim); }
+  .hist .memo { display:block; font-size:12px; color:var(--fg); text-align:left; }
+  .hist button { padding:4px 8px; font-size:12px; }
+  .scroll { overflow-x:auto; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+
+  .set { display:grid; grid-template-columns:7.5em minmax(0,1fr) 3.5em; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
   .set input[type=range] { width:100%; }
   .set output { text-align:right; font-variant-numeric:tabular-nums; }
   .hint { font-size:12px; color:var(--dim); margin:4px 0 0; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-
   #log { background:#000; border-radius:8px; padding:8px; height:30vh; overflow-y:auto; font:12px/1.4 ui-monospace,Consolas,monospace; white-space:pre-wrap; word-break:break-all; margin-top:10px; }
   #log .tx { color:var(--acc); } #log .sys { color:var(--dim); } #log .err { color:var(--ng); }
   .send { display:flex; gap:8px; margin-top:8px; }
   .send input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); }
+  h3 { font-size:13px; color:var(--dim); font-weight:normal; margin:0 0 8px; }
 </style>
 </head>
 <body>
@@ -71,66 +87,200 @@
   <button class="pri" id="btnConn">接続</button>
 </header>
 <main>
-  <div id="nobt">このブラウザは Web Bluetooth に対応していません。Android は Chrome、iPhone は「Bluefy」アプリで開いてください。</div>
+  <div class="note" id="nobt" hidden>このブラウザは Web Bluetooth に対応していません。Android は Chrome、iPhone は「Bluefy」アプリで開いてください。</div>
 
-  <div class="status" id="status"><span class="lamp"></span><span class="txt" id="statusTxt">接続してください</span><span class="clock" id="clock"></span></div>
-
-  <div class="controls">
-    <button id="btnStart" disabled>スタート</button>
-    <button id="btnReset" disabled>リセット</button>
-    <button id="btnCal" disabled>基準取り直し</button>
+  <div class="tabs">
+    <button class="tab on" id="tabRun">測定</button>
+    <button class="tab" id="tabHist">記録</button>
+    <button class="tab" id="tabSet">設定</button>
   </div>
 
-  <div class="lanes" id="lanes"></div>
+  <!-- ===== 測定 ===== -->
+  <section id="paneRun" style="display:flex;flex-direction:column;gap:12px">
+    <div class="card opts">
+      <label for="laps">周回数 <input type="number" id="laps" min="1" max="50" value="3"></label>
+      <label for="useSig"><input type="checkbox" id="useSig"> スタートシグナルで開始</label>
+    </div>
 
-  <section>
-    <h2>ラップ一覧（新しい順）</h2>
-    <div class="lapwrap"><table><thead><tr><th>周</th><th>レーン</th><th>ラップ</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table><div class="empty" id="lapEmpty">まだ記録がありません。スタートを押すか、そのまま走らせてください（フリー走行は 1 回目の通過から計測）。</div></div>
+    <div class="card">
+      <div class="state" id="state"><span class="lamp"></span><span id="stateTxt">接続してください</span></div>
+      <div class="time" id="time">0.000</div>
+      <div class="sub"><b id="lapNow">0</b> / <span id="lapTarget">3</span> 周　前の周 <b id="lastLap">--.---</b>　ベスト <b id="bestLap" style="color:var(--best)">--.---</b></div>
+      <div class="btns">
+        <button class="go" id="btnStart" disabled>測定開始</button>
+        <button id="btnStop" disabled>測定終了</button>
+        <button id="btnCancel" disabled>取りやめ</button>
+      </div>
+    </div>
+
+    <!-- 結果の判断。自動判定はしない（計測に問題があっただけかもしれないため）。
+         選ぶまで次の測定は始められない（保存前に測定開始を押して結果を消す誤操作を防ぐ。MBC2 版で実際に起きた） -->
+    <div class="card verdict" id="verdict" hidden>
+      <h2>この走行をどうする？</h2>
+      <p id="vSummary"></p>
+      <textarea id="memo" rows="2" placeholder="メモ（任意）例）タイヤ交換後"></textarea>
+      <div class="vbtns">
+        <button class="go" id="vFinish">完走</button>
+        <button class="ng" id="vCrash">コースアウト</button>
+        <button id="vDiscard">破棄</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>この走行のラップ</h3>
+      <table><thead><tr><th>周</th><th>ラップ</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table>
+      <div class="empty" id="lapEmpty">「測定開始」を押してから走らせてください。シグナルを使わないときは、最初にセンサーを通過した瞬間から測ります。</div>
+    </div>
   </section>
 
-  <details id="setBox">
-    <summary>設定</summary>
-    <div class="set"><label for="thr">感度（しきい値）</label><input type="range" id="thr" min="10" max="200" step="5" value="35"><output id="thrV">35</output></div>
-    <p class="hint">小さいほど敏感。誤検出が多いときは上げる。</p>
-    <div class="set"><label for="vol">通過音の大きさ</label><input type="range" id="vol" min="1" max="50" step="1" value="3"><output id="volV">3</output></div>
-    <div class="set"><label for="pip">ピピピの高さ</label><input type="range" id="pip" min="200" max="2700" step="50" value="1000"><output id="pipV">1000</output></div>
-    <p class="hint">単位は Hz。ブーは 2700Hz（いちばん大きく聞こえる高さ）で固定。</p>
-    <div class="row"><button id="btnBuu" disabled>ブーを試す</button></div>
-  </details>
-
-  <details>
-    <summary>通信の記録</summary>
-    <div id="log"></div>
-    <div class="send">
-      <input id="inp" placeholder="基板への命令（@ で始まると XIAO へ）" autocapitalize="off" autocomplete="off">
-      <button id="btnSend" disabled>送信</button>
+  <!-- ===== 記録（このスマホのブラウザにだけ保存） ===== -->
+  <section id="paneHist" hidden>
+    <div class="card">
+      <div class="stats">
+        <div class="stat"><div class="k">走行</div><div class="v" id="sRuns">0</div></div>
+        <div class="stat"><div class="k">完走の最速</div><div class="v" id="sBest">--</div></div>
+        <div class="stat"><div class="k">完走の平均</div><div class="v" id="sAvg">--</div></div>
+        <div class="stat"><div class="k">ベストラップ</div><div class="v" id="sBestLap">--</div></div>
+      </div>
+      <div class="scroll">
+        <table class="hist"><thead><tr><th>#</th><th>時刻</th><th>結果</th><th>合計</th><th></th></tr></thead><tbody id="histBody"></tbody></table>
+      </div>
+      <div class="empty" id="histEmpty">まだ記録がありません。測定して「完走」か「コースアウト」を選ぶと、ここに残ります。</div>
+      <div class="row">
+        <button id="btnCopy">CSV をコピー</button>
+        <button class="ng" id="btnClearAsk">全部消す</button>
+        <button class="ng" id="btnClearYes" hidden>本当に消す</button>
+      </div>
+      <p class="hint">記録はこのスマホのブラウザの中だけに保存されます。ブラウザのデータを消すと消えます。</p>
     </div>
-  </details>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section id="paneSet" hidden>
+    <div class="card">
+      <div class="set"><label for="thr">感度（しきい値）</label><input type="range" id="thr" min="10" max="200" step="5" value="35"><output id="thrV">35</output></div>
+      <p class="hint">小さいほど敏感。誤検出が多いときは上げる。</p>
+      <div class="set"><label for="vol">通過音の大きさ</label><input type="range" id="vol" min="1" max="50" step="1" value="3"><output id="volV">3</output></div>
+      <div class="set"><label for="pip">ピピピの高さ</label><input type="range" id="pip" min="200" max="2700" step="50" value="1000"><output id="pipV">1000</output></div>
+      <p class="hint">単位は Hz。ブーは 2700Hz（いちばん大きく聞こえる高さ）で固定。</p>
+      <div class="row">
+        <button id="btnCal" disabled>センサーの基準を取り直す</button>
+        <button id="btnBuu" disabled>ブーを試す</button>
+      </div>
+      <p class="hint">基準の取り直しは、センサーの前に何も無いときに押す（基板の OK ボタンと同じ）。</p>
+    </div>
+    <div class="card">
+      <h3>通信の記録</h3>
+      <div id="log"></div>
+      <div class="send">
+        <input id="inp" placeholder="基板への命令（@ で始まると XIAO へ）" autocapitalize="off" autocomplete="off">
+        <button id="btnSend" disabled>送信</button>
+      </div>
+    </div>
+  </section>
 </main>
 <script>
-// MIC-LABO ラップタイマー（試作）の操作ページ（2026-10-15）
+// MIC-LABO ラップタイマー（試作 v1 基板・センサー 1 個）の操作ページ（2026-10-15）
 // XIAO の MIC-LINK（Nordic UART Service）に Web Bluetooth でつなぎ、ラップタイマー基板と 1 行ずつやりとりする。
-// 基板 → ページ: HELLO / CFG / SIGNAL / GO / PASS,<レーン>,first / LAP,<レーン>,<周>,<秒>,<ベスト> / RESET / CAL
-// ページ → 基板: START / RESET / CAL / CFG? / THR n / VOL n / PIP n / BUU
+// 行の決まりは基板のファーム（pass_beep.ino の「計測と MIC-LINK」の節）と同じ。
 const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const HIST_KEY = 'miclab-laptimer-history-v1';
+const OPT_KEY = 'miclab-laptimer-opts-v1';
 const $ = id => document.getElementById(id);
 const enc = new TextEncoder(), dec = new TextDecoder();
 let dev = null, rxChar = null, rxBuf = '', sendQ = Promise.resolve();
-let runStart = 0, clockTimer = 0;
-const seenLanes = new Set();
-const laps = [];  // {lane, no, sec, total}
+let devState = 'READY', goAt = 0, raf = 0;
+let run = null;       // 今の走行 {target, laps:[ms], totalMs, reached, done}
+let pending = null;   // 判定待ちの走行
+let history = [];
 
-const lanes = [1, 2, 3].map(n => {
-  const el = document.createElement('div');
-  el.className = 'lane off';
-  el.innerHTML = `<div class="n">レーン ${n}</div><div class="laps">0 周</div><div class="last">--.---</div><div class="best">ベスト --.---</div>`;
-  $('lanes').appendChild(el);
-  return { el, count: 0, best: 0, total: 0 };
-});
-const fmt = s => s ? s.toFixed(3) : '--.---';
+const sec = ms => (ms / 1000).toFixed(3);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
 
+// ---------- 画面 ----------
+function showTab(name) {
+  for (const t of ['Run', 'Hist', 'Set']) {
+    $('tab' + t).classList.toggle('on', t === name);
+    $('pane' + t).hidden = t !== name;
+  }
+  if (name === 'Run') $('paneRun').style.display = 'flex'; else $('paneRun').style.display = 'none';
+}
+
+const STATE_TEXT = { READY: '待機中', STANDBY: '最初の通過を待っています', SIGNAL: 'スタートシグナル中…', RUNNING: '計測中', DONE: '終了' };
+function renderState() {
+  const conn = !!(rxChar && dev && dev.gatt.connected);
+  $('state').className = 'state ' + devState.toLowerCase();
+  $('stateTxt').textContent = conn ? (pending ? '結果を選んでください' : STATE_TEXT[devState] || devState) : '接続してください';
+  const idle = devState === 'READY';
+  $('btnStart').disabled = !conn || !idle || !!pending;
+  $('btnStop').disabled = !conn || devState !== 'RUNNING';
+  $('btnCancel').disabled = !conn || idle;
+  $('laps').disabled = $('useSig').disabled = !idle || !!pending;
+  for (const id of ['btnCal', 'btnBuu', 'btnSend']) $(id).disabled = !conn;
+}
+
+function renderRun() {
+  const r = run || { target: +$('laps').value, laps: [] };
+  $('lapTarget').textContent = r.target;
+  $('lapNow').textContent = r.laps.length;
+  const best = r.laps.length ? Math.min(...r.laps) : 0;
+  $('lastLap').textContent = r.laps.length ? sec(r.laps[r.laps.length - 1]) : '--.---';
+  $('bestLap').textContent = best ? sec(best) : '--.---';
+  let total = 0;
+  const rows = r.laps.map((ms, i) => { total += ms; return { i: i + 1, ms, total }; }).reverse();
+  $('lapBody').innerHTML = rows.map(x => `<tr class="${x.ms === best && r.laps.length > 1 ? 'best' : ''}"><td>${x.i}</td><td class="lap">${sec(x.ms)}</td><td>${sec(x.total)}</td></tr>`).join('');
+  $('lapEmpty').hidden = r.laps.length > 0;
+}
+
+function tick() {
+  if (devState === 'RUNNING' && goAt) $('time').textContent = sec(performance.now() - goAt);
+  raf = requestAnimationFrame(tick);
+}
+
+function showVerdict() {
+  const r = pending;
+  $('vSummary').textContent = `${r.laps.length} / ${r.target} 周　合計 ${sec(r.totalMs)} 秒` + (r.reached ? '' : '（規定周回に届いていません）');
+  $('memo').value = '';
+  $('verdict').hidden = false;
+  $('verdict').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function decide(result) {
+  if (!pending) return;
+  if (result) {
+    history.push({ at: Date.now(), result, target: pending.target, laps: pending.laps, totalMs: pending.totalMs, reached: pending.reached, memo: $('memo').value.trim() });
+    store.set(HIST_KEY, history);
+    renderHist();
+  }
+  pending = null;
+  $('verdict').hidden = true;
+  renderState();
+}
+
+function renderHist() {
+  const fin = history.filter(h => h.result === 'finish' && h.reached);
+  const allLaps = history.flatMap(h => h.laps);
+  $('sRuns').textContent = history.length;
+  $('sBest').textContent = fin.length ? sec(Math.min(...fin.map(h => h.totalMs))) : '--';
+  $('sAvg').textContent = fin.length ? sec(fin.reduce((a, h) => a + h.totalMs, 0) / fin.length) : '--';
+  $('sBestLap').textContent = allLaps.length ? sec(Math.min(...allLaps)) : '--';
+  $('histEmpty').hidden = history.length > 0;
+  $('histBody').innerHTML = history.map((h, i) => {
+    const d = new Date(h.at);
+    const t = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const res = h.result === 'finish' ? '<span class="ok">完走</span>' : '<span class="co">CO</span>';
+    const memo = h.memo ? `<span class="memo">${h.memo.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span>` : '';
+    return `<tr><td>${i + 1}</td><td>${t}</td><td class="res">${res}<span class="laps">${h.laps.length}/${h.target} 周</span></td>` +
+      `<td>${sec(h.totalMs)}<span class="laps">${h.laps.map(sec).join(' / ')}</span>${memo}</td><td><button data-del="${i}">消す</button></td></tr>`;
+  }).reverse().join('');
+}
+
+// ---------- 通信 ----------
 function log(text, cls = '') {
   const box = $('log'), d = document.createElement('div');
   d.className = cls;
@@ -139,45 +289,6 @@ function log(text, cls = '') {
   box.appendChild(d);
   while (box.childNodes.length > 500) box.removeChild(box.firstChild);
   if (atBottom) box.scrollTop = box.scrollHeight;
-}
-
-function setStatus(kind, text) {
-  $('status').className = 'status ' + kind;
-  $('statusTxt').textContent = text;
-}
-function startClock(t0) {
-  runStart = t0;
-  clearInterval(clockTimer);
-  clockTimer = setInterval(() => { $('clock').textContent = ((performance.now() - runStart) / 1000).toFixed(1) + ' 秒'; }, 100);
-}
-function stopClock() { clearInterval(clockTimer); $('clock').textContent = ''; }
-
-function clearLaps() {
-  laps.length = 0;
-  lanes.forEach(l => { l.count = 0; l.best = 0; l.total = 0; });
-  render();
-}
-
-function render() {
-  lanes.forEach((l, i) => {
-    l.el.classList.toggle('off', !seenLanes.has(i + 1));
-    l.el.querySelector('.laps').textContent = `${l.count} 周`;
-    const last = laps.find(x => x.lane === i + 1);
-    l.el.querySelector('.last').textContent = fmt(last && last.sec);
-    l.el.querySelector('.best').textContent = 'ベスト ' + fmt(l.best);
-  });
-  $('lapEmpty').hidden = laps.length > 0;
-  $('lapBody').innerHTML = laps.map(x => {
-    const isBest = lanes[x.lane - 1] && x.sec === lanes[x.lane - 1].best;
-    return `<tr class="${isBest ? 'best' : ''}"><td>${x.no}</td><td>${x.lane}</td><td>${x.sec.toFixed(3)}</td><td>${x.total.toFixed(3)}</td></tr>`;
-  }).join('');
-}
-
-function flash(lane) {
-  const el = lanes[lane - 1] && lanes[lane - 1].el;
-  if (!el) return;
-  el.classList.add('flash');
-  setTimeout(() => el.classList.remove('flash'), 250);
 }
 
 function setCfg(name, v) {
@@ -190,42 +301,36 @@ function onLine(line) {
   log(line);
   const f = line.split(',');
   switch (f[0].toUpperCase()) {
-    case 'HELLO':
-      $('title').textContent = `${f[1] || 'ラップタイマー'} ${f[2] || ''} v${f[3] || ''}`;
+    case 'HELLO': $('title').textContent = `${f[1] || 'ラップタイマー'} v${f[3] || ''}`; break;
+    case 'CFG': f.slice(1).forEach(kv => { const [k, v] = kv.split('='); setCfg(k, v); }); break;
+    case 'STATE':
+      devState = f[1];
+      if (devState === 'STANDBY' || devState === 'SIGNAL') { goAt = 0; $('time').textContent = '0.000'; }
+      renderState();
       break;
-    case 'CFG':
-      f.slice(1).forEach(kv => { const [k, v] = kv.split('='); setCfg(k, v); });
+    case 'GO': goAt = performance.now(); break;
+    case 'LAP':
+      // LAP,<周>,<ラップms>,<合計ms>
+      if (!run) break;
+      run.laps[+f[1] - 1] = +f[2];
+      goAt = performance.now() - +f[3];  // 基板の時刻に合わせ直す
+      renderRun();
       break;
-    case 'SIGNAL':
-      clearLaps(); stopClock(); setStatus('signal', 'スタート合図中…');
-      break;
-    case 'GO':
-      setStatus('run', '計測中（レース）'); startClock(performance.now());
-      break;
-    case 'PASS': {
-      const lane = +f[1];
-      seenLanes.add(lane);
-      setStatus('run', '計測中（フリー走行）'); startClock(performance.now());
-      flash(lane); render();
-      break;
-    }
-    case 'LAP': {
-      // LAP,<レーン>,<周>,<秒>,<ベスト>
-      const lane = +f[1], no = +f[2], sec = +f[3], best = +f[4];
-      const l = lanes[lane - 1];
-      if (!l) break;
-      seenLanes.add(lane);
-      l.count = no; l.best = best; l.total += sec;
-      laps.unshift({ lane, no, sec, total: l.total });
-      flash(lane); render();
+    case 'RESULT': {
+      // RESULT,<周回数>,<合計ms>,<届いた1/0>,<ラップms>...
+      if (!run) run = { target: +$('laps').value, laps: [] };
+      run.laps = f.slice(4).map(Number);
+      run.totalMs = +f[2];
+      run.reached = f[3] === '1';
+      $('time').textContent = sec(run.totalMs);
+      renderRun();
+      if (run.laps.length) { pending = run; showVerdict(); }
+      run = null;
+      renderState();
       break;
     }
-    case 'RESET':
-      clearLaps(); stopClock(); setStatus('', '待機中');
-      break;
-    case 'CAL':
-      setStatus($('status').classList.contains('run') ? 'run' : '', '基準を取り直しました');
-      break;
+    case 'CAL': log('センサーの基準を取り直しました', 'sys'); break;
+    case 'ERR': log('基板がエラーを返しました: ' + line, 'err'); break;
   }
 }
 
@@ -249,10 +354,9 @@ async function connect() {
     await tx.startNotifications();
     $('conn').textContent = dev.name; $('conn').className = 'on';
     $('btnConn').textContent = '切断';
-    document.querySelectorAll('button:not(#btnConn)').forEach(b => b.disabled = false);
-    setStatus('', '待機中');
     log(`${dev.name} に接続しました`, 'sys');
-    send('CFG?');
+    renderState();
+    send('CFG?');  // 設定と、今の状態（STATE）が返ってくる
   } catch (e) {
     $('conn').textContent = '未接続';
     if (e.name !== 'NotFoundError') log('接続できません: ' + e.name + ' ' + e.message, 'err');
@@ -260,11 +364,11 @@ async function connect() {
 }
 
 function onDisconnect() {
+  rxChar = null;
   $('conn').textContent = '切断'; $('conn').className = '';
   $('btnConn').textContent = '接続';
-  document.querySelectorAll('button:not(#btnConn)').forEach(b => b.disabled = true);
-  stopClock(); setStatus('', '切断しました。もう一度「接続」を押してください');
-  log('切断しました', 'sys');
+  log('切断しました。もう一度「接続」を押してください', 'sys');
+  renderState();
 }
 
 // 送信は 1 行ずつ順番に（BLE の書き込みが重なるとエラーになる）
@@ -279,9 +383,25 @@ function send(text) {
   });
 }
 
+// ---------- 操作 ----------
 $('btnConn').onclick = () => (dev && dev.gatt.connected) ? dev.gatt.disconnect() : connect();
-$('btnStart').onclick = () => send('START');
-$('btnReset').onclick = () => send('RESET');
+$('tabRun').onclick = () => showTab('Run');
+$('tabHist').onclick = () => showTab('Hist');
+$('tabSet').onclick = () => showTab('Set');
+$('btnStart').onclick = () => {
+  const n = Math.max(1, Math.min(50, +$('laps').value || 3));
+  $('laps').value = n;
+  store.set(OPT_KEY, { laps: n, sig: $('useSig').checked });
+  run = { target: n, laps: [] };
+  renderRun();
+  send(`START ${n}${$('useSig').checked ? ' SIG' : ''}`);
+};
+$('btnStop').onclick = () => send('STOP');
+$('btnCancel').onclick = () => { run = null; renderRun(); send('RESET'); };
+$('vFinish').onclick = () => decide('finish');
+$('vCrash').onclick = () => decide('courseout');
+$('vDiscard').onclick = () => decide(null);
+$('laps').addEventListener('change', renderRun);
 $('btnCal').onclick = () => send('CAL');
 $('btnBuu').onclick = () => send('BUU');
 for (const [id, cmd] of [['thr', 'THR'], ['vol', 'VOL'], ['pip', 'PIP']]) {
@@ -290,8 +410,33 @@ for (const [id, cmd] of [['thr', 'THR'], ['vol', 'VOL'], ['pip', 'PIP']]) {
 }
 $('btnSend').onclick = () => { send($('inp').value.trim()); $('inp').value = ''; };
 $('inp').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSend').onclick(); });
-if (!navigator.bluetooth) { $('nobt').style.display = 'block'; $('btnConn').disabled = true; }
-render();
+$('histBody').addEventListener('click', e => {
+  const i = e.target.dataset && e.target.dataset.del;
+  if (i === undefined) return;
+  history.splice(+i, 1); store.set(HIST_KEY, history); renderHist();
+});
+$('btnClearAsk').onclick = () => { $('btnClearYes').hidden = false; setTimeout(() => $('btnClearYes').hidden = true, 4000); };
+$('btnClearYes').onclick = () => { history = []; store.set(HIST_KEY, history); renderHist(); $('btnClearYes').hidden = true; };
+$('btnCopy').onclick = async () => {
+  const maxL = Math.max(0, ...history.map(h => h.laps.length));
+  const head = ['日時', '結果', '周回数', '規定周回', '合計秒', ...Array.from({ length: maxL }, (_, i) => `ラップ${i + 1}`), 'メモ'];
+  const rows = history.map(h => [new Date(h.at).toLocaleString('ja-JP'), h.result === 'finish' ? '完走' : 'コースアウト', h.laps.length, h.target, sec(h.totalMs),
+    ...Array.from({ length: maxL }, (_, i) => h.laps[i] ? sec(h.laps[i]) : ''), '"' + (h.memo || '').replace(/"/g, '""') + '"']);
+  const csv = [head, ...rows].map(r => r.join(',')).join('\n');
+  try { await navigator.clipboard.writeText(csv); $('btnCopy').textContent = 'コピーしました'; }
+  catch { $('btnCopy').textContent = 'コピーできませんでした'; }
+  setTimeout(() => $('btnCopy').textContent = 'CSV をコピー', 2000);
+};
+
+// ---------- 起動 ----------
+const opts = store.get(OPT_KEY, {});
+if (opts.laps) $('laps').value = opts.laps;
+$('useSig').checked = !!opts.sig;
+history = store.get(HIST_KEY, []);
+if (!navigator.bluetooth) { $('nobt').hidden = false; $('btnConn').disabled = true; }
+showTab('Run');
+renderRun(); renderHist(); renderState();
+tick();
 </script>
 </body>
 </html>
