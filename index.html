@@ -29,6 +29,8 @@
   .opts label { display:flex; align-items:center; gap:8px; }
   .opts input[type=number] { width:4.5em; font-size:18px; padding:6px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); text-align:center; }
   .opts input[type=checkbox] { width:20px; height:20px; }
+  .opts select { font-size:16px; padding:6px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); }
+  .opts .hint { flex-basis:100%; margin:0; }
 
   .state { display:flex; align-items:center; gap:8px; font-size:14px; color:var(--dim); }
   .lamp { width:12px; height:12px; border-radius:50%; background:var(--dim); flex:none; }
@@ -98,14 +100,16 @@
   <!-- ===== 測定 ===== -->
   <section id="paneRun" style="display:flex;flex-direction:column;gap:12px">
     <div class="card opts">
-      <label for="laps">周回数 <input type="number" id="laps" min="1" max="50" value="3"></label>
+      <label for="lanesSel">コース <select id="lanesSel"><option value="3">3 レーン</option><option value="1">1 レーン</option></select></label>
+      <label for="laps">周回数 <input type="number" id="laps" min="3" max="99" step="3" value="3"></label>
       <label for="useSig"><input type="checkbox" id="useSig"> スタートシグナルで開始</label>
+      <p class="hint" id="lanesHint"></p>
     </div>
 
     <div class="card">
       <div class="state" id="state"><span class="lamp"></span><span id="stateTxt">接続してください</span></div>
       <div class="time" id="time">0.000</div>
-      <div class="sub"><b id="lapNow">0</b> / <span id="lapTarget">3</span> 周　前の周 <b id="lastLap">--.---</b>　ベスト <b id="bestLap" style="color:var(--best)">--.---</b></div>
+      <div class="sub"><b id="lapNow">0</b> / <span id="lapTarget">3</span> 周　<span id="segName">前の 3 周</span> <b id="lastLap">--.---</b>　ベスト <b id="bestLap" style="color:var(--best)">--.---</b></div>
       <div class="btns">
         <button class="go" id="btnStart" disabled>測定開始</button>
         <button id="btnStop" disabled>測定終了</button>
@@ -128,7 +132,7 @@
 
     <div class="card">
       <h3>この走行のラップ</h3>
-      <table><thead><tr><th>周</th><th>ラップ</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table>
+      <table><thead><tr><th>周</th><th>区間</th><th>1 周平均</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table>
       <div class="empty" id="lapEmpty">「測定開始」を押してから走らせてください。シグナルを使わないときは、最初にセンサーを通過した瞬間から測ります。</div>
     </div>
   </section>
@@ -140,7 +144,7 @@
         <div class="stat"><div class="k">走行</div><div class="v" id="sRuns">0</div></div>
         <div class="stat"><div class="k">完走の最速</div><div class="v" id="sBest">--</div></div>
         <div class="stat"><div class="k">完走の平均</div><div class="v" id="sAvg">--</div></div>
-        <div class="stat"><div class="k">ベストラップ</div><div class="v" id="sBestLap">--</div></div>
+        <div class="stat"><div class="k">1 周平均の最速</div><div class="v" id="sBestLap">--</div></div>
       </div>
       <div class="scroll">
         <table class="hist"><thead><tr><th>#</th><th>時刻</th><th>結果</th><th>合計</th><th></th></tr></thead><tbody id="histBody"></tbody></table>
@@ -192,8 +196,11 @@ const $ = id => document.getElementById(id);
 const enc = new TextEncoder(), dec = new TextDecoder();
 let dev = null, rxChar = null, rxBuf = '', sendQ = Promise.resolve();
 let devState = 'READY', goAt = 0, raf = 0;
-let run = null;       // 今の走行 {target, laps:[ms], totalMs, reached, done}
+// センサーは 1 か所だけ。3 レーンのコースでは、マシンは 3 周してもとのレーンに戻ったときだけセンサーを通る。
+// そこで「通過 1 回 = コースのレーン数ぶんの周」とし、通過と通過の間を「区間」と呼ぶ。基板は通過だけを数える。
+let run = null;       // 今の走行 {target:周, L:1 区間の周数, laps:[区間ms], totalMs, reached}
 let pending = null;   // 判定待ちの走行
+let shown = null;     // 終わった走行も、次の測定開始までは表示しておく
 let history = [];
 
 const sec = ms => (ms / 1000).toFixed(3);
@@ -220,21 +227,37 @@ function renderState() {
   $('btnStart').disabled = !conn || !idle || !!pending;
   $('btnStop').disabled = !conn || devState !== 'RUNNING';
   $('btnCancel').disabled = !conn || idle;
-  $('laps').disabled = $('useSig').disabled = !idle || !!pending;
+  $('laps').disabled = $('useSig').disabled = $('lanesSel').disabled = !idle || !!pending;
   for (const id of ['btnCal', 'btnBuu', 'btnSend']) $(id).disabled = !conn;
 }
 
 function renderRun() {
-  const r = run || { target: +$('laps').value, laps: [] };
+  const r = run || shown || { target: +$('laps').value, L: +$('lanesSel').value, laps: [] };
   $('lapTarget').textContent = r.target;
-  $('lapNow').textContent = r.laps.length;
+  $('lapNow').textContent = r.laps.length * r.L;
+  $('segName').textContent = r.L > 1 ? `前の ${r.L} 周` : '前の周';
   const best = r.laps.length ? Math.min(...r.laps) : 0;
   $('lastLap').textContent = r.laps.length ? sec(r.laps[r.laps.length - 1]) : '--.---';
   $('bestLap').textContent = best ? sec(best) : '--.---';
   let total = 0;
-  const rows = r.laps.map((ms, i) => { total += ms; return { i: i + 1, ms, total }; }).reverse();
-  $('lapBody').innerHTML = rows.map(x => `<tr class="${x.ms === best && r.laps.length > 1 ? 'best' : ''}"><td>${x.i}</td><td class="lap">${sec(x.ms)}</td><td>${sec(x.total)}</td></tr>`).join('');
+  const rows = r.laps.map((ms, i) => { total += ms; return { i, ms, total }; }).reverse();
+  $('lapBody').innerHTML = rows.map(x => `<tr class="${x.ms === best && r.laps.length > 1 ? 'best' : ''}"><td>${lapRange(x.i, r.L)}</td><td class="lap">${sec(x.ms)}</td><td>${sec(x.ms / r.L)}</td><td>${sec(x.total)}</td></tr>`).join('');
   $('lapEmpty').hidden = r.laps.length > 0;
+}
+
+const lapRange = (i, L) => L > 1 ? `${i * L + 1}〜${(i + 1) * L}` : `${i + 1}`;
+function lanesHint() {
+  const L = +$('lanesSel').value;
+  $('laps').min = $('laps').step = L;
+  $('lanesHint').textContent = L > 1
+    ? `センサーは 1 か所なので、マシンが ${L} 周してもとのレーンに戻ったときに 1 回だけ測れます。周回数は ${L} の倍数で選びます。`
+    : '1 レーンのコースでは、センサーを通るたびに 1 周です。';
+}
+function fixLaps() {
+  const L = +$('lanesSel').value;
+  const n = Math.max(L, Math.min(99, Math.round((+$('laps').value || L) / L) * L));
+  $('laps').value = n;
+  return n;
 }
 
 function tick() {
@@ -244,7 +267,7 @@ function tick() {
 
 function showVerdict() {
   const r = pending;
-  $('vSummary').textContent = `${r.laps.length} / ${r.target} 周　合計 ${sec(r.totalMs)} 秒` + (r.reached ? '' : '（規定周回に届いていません）');
+  $('vSummary').textContent = `${r.laps.length * r.L} / ${r.target} 周　合計 ${sec(r.totalMs)} 秒` + (r.reached ? '' : '（規定周回に届いていません）');
   $('memo').value = '';
   $('verdict').hidden = false;
   $('verdict').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -253,7 +276,7 @@ function showVerdict() {
 function decide(result) {
   if (!pending) return;
   if (result) {
-    history.push({ at: Date.now(), result, target: pending.target, laps: pending.laps, totalMs: pending.totalMs, reached: pending.reached, memo: $('memo').value.trim() });
+    history.push({ at: Date.now(), result, target: pending.target, L: pending.L, laps: pending.laps, totalMs: pending.totalMs, reached: pending.reached, memo: $('memo').value.trim() });
     store.set(HIST_KEY, history);
     renderHist();
   }
@@ -264,7 +287,7 @@ function decide(result) {
 
 function renderHist() {
   const fin = history.filter(h => h.result === 'finish' && h.reached);
-  const allLaps = history.flatMap(h => h.laps);
+  const allLaps = history.flatMap(h => h.laps.map(ms => ms / (h.L || 1)));
   $('sRuns').textContent = history.length;
   $('sBest').textContent = fin.length ? sec(Math.min(...fin.map(h => h.totalMs))) : '--';
   $('sAvg').textContent = fin.length ? sec(fin.reduce((a, h) => a + h.totalMs, 0) / fin.length) : '--';
@@ -275,7 +298,7 @@ function renderHist() {
     const t = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     const res = h.result === 'finish' ? '<span class="ok">完走</span>' : '<span class="co">CO</span>';
     const memo = h.memo ? `<span class="memo">${h.memo.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span>` : '';
-    return `<tr><td>${i + 1}</td><td>${t}</td><td class="res">${res}<span class="laps">${h.laps.length}/${h.target} 周</span></td>` +
+    return `<tr><td>${i + 1}</td><td>${t}</td><td class="res">${res}<span class="laps">${h.laps.length * (h.L || 1)}/${h.target} 周</span></td>` +
       `<td>${sec(h.totalMs)}<span class="laps">${h.laps.map(sec).join(' / ')}</span>${memo}</td><td><button data-del="${i}">消す</button></td></tr>`;
   }).reverse().join('');
 }
@@ -318,12 +341,13 @@ function onLine(line) {
       break;
     case 'RESULT': {
       // RESULT,<周回数>,<合計ms>,<届いた1/0>,<ラップms>...
-      if (!run) run = { target: +$('laps').value, laps: [] };
+      if (!run) run = { target: +$('laps').value, L: +$('lanesSel').value, laps: [] };
       run.laps = f.slice(4).map(Number);
       run.totalMs = +f[2];
       run.reached = f[3] === '1';
       $('time').textContent = sec(run.totalMs);
       renderRun();
+      shown = run;
       if (run.laps.length) { pending = run; showVerdict(); }
       run = null;
       renderState();
@@ -389,19 +413,20 @@ $('tabRun').onclick = () => showTab('Run');
 $('tabHist').onclick = () => showTab('Hist');
 $('tabSet').onclick = () => showTab('Set');
 $('btnStart').onclick = () => {
-  const n = Math.max(1, Math.min(50, +$('laps').value || 3));
-  $('laps').value = n;
-  store.set(OPT_KEY, { laps: n, sig: $('useSig').checked });
-  run = { target: n, laps: [] };
+  const L = +$('lanesSel').value, n = fixLaps();
+  store.set(OPT_KEY, { laps: n, L, sig: $('useSig').checked });
+  run = { target: n, L, laps: [] };
+  shown = null;
   renderRun();
-  send(`START ${n}${$('useSig').checked ? ' SIG' : ''}`);
+  send(`START ${n / L}${$('useSig').checked ? ' SIG' : ''}`);  // 基板には通過の回数で渡す
 };
 $('btnStop').onclick = () => send('STOP');
-$('btnCancel').onclick = () => { run = null; renderRun(); send('RESET'); };
+$('btnCancel').onclick = () => { run = shown = null; renderRun(); send('RESET'); };
 $('vFinish').onclick = () => decide('finish');
 $('vCrash').onclick = () => decide('courseout');
 $('vDiscard').onclick = () => decide(null);
-$('laps').addEventListener('change', renderRun);
+$('laps').addEventListener('change', () => { fixLaps(); shown = null; renderRun(); });
+$('lanesSel').addEventListener('change', () => { lanesHint(); fixLaps(); shown = null; renderRun(); });
 $('btnCal').onclick = () => send('CAL');
 $('btnBuu').onclick = () => send('BUU');
 for (const [id, cmd] of [['thr', 'THR'], ['vol', 'VOL'], ['pip', 'PIP']]) {
@@ -419,8 +444,8 @@ $('btnClearAsk').onclick = () => { $('btnClearYes').hidden = false; setTimeout((
 $('btnClearYes').onclick = () => { history = []; store.set(HIST_KEY, history); renderHist(); $('btnClearYes').hidden = true; };
 $('btnCopy').onclick = async () => {
   const maxL = Math.max(0, ...history.map(h => h.laps.length));
-  const head = ['日時', '結果', '周回数', '規定周回', '合計秒', ...Array.from({ length: maxL }, (_, i) => `ラップ${i + 1}`), 'メモ'];
-  const rows = history.map(h => [new Date(h.at).toLocaleString('ja-JP'), h.result === 'finish' ? '完走' : 'コースアウト', h.laps.length, h.target, sec(h.totalMs),
+  const head = ['日時', '結果', '走った周', '規定周回', 'コースのレーン数', '合計秒', ...Array.from({ length: maxL }, (_, i) => `区間${i + 1}`), 'メモ'];
+  const rows = history.map(h => [new Date(h.at).toLocaleString('ja-JP'), h.result === 'finish' ? '完走' : 'コースアウト', h.laps.length * (h.L || 1), h.target, h.L || 1, sec(h.totalMs),
     ...Array.from({ length: maxL }, (_, i) => h.laps[i] ? sec(h.laps[i]) : ''), '"' + (h.memo || '').replace(/"/g, '""') + '"']);
   const csv = [head, ...rows].map(r => r.join(',')).join('\n');
   try { await navigator.clipboard.writeText(csv); $('btnCopy').textContent = 'コピーしました'; }
@@ -430,7 +455,9 @@ $('btnCopy').onclick = async () => {
 
 // ---------- 起動 ----------
 const opts = store.get(OPT_KEY, {});
+if (opts.L) $('lanesSel').value = opts.L;
 if (opts.laps) $('laps').value = opts.laps;
+lanesHint(); fixLaps();
 $('useSig').checked = !!opts.sig;
 history = store.get(HIST_KEY, []);
 if (!navigator.bluetooth) { $('nobt').hidden = false; $('btnConn').disabled = true; }
