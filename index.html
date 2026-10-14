@@ -2,118 +2,239 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MIC-LINK</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MIC-LABO ラップタイマー</title>
 <style>
-  :root { --bg:#111; --fg:#eee; --dim:#888; --card:#1d1d1d; --acc:#2bb3e6; --ok:#3c3; --ng:#e44; }
+  :root { color-scheme:dark; --bg:#0e1114; --fg:#eef2f5; --dim:#8a96a0; --card:#192026; --line:#2a333b; --acc:#2bb3e6; --go:#35c46a; --warn:#f0b429; --ng:#e5484d; --best:#c78bff; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif; }
-  header { display:flex; align-items:center; gap:8px; padding:12px 16px; background:#000; position:sticky; top:0; }
-  header h1 { font-size:18px; margin:0; flex:1; }
-  #state { font-size:13px; color:var(--dim); }
-  #state.on { color:var(--ok); }
-  button { font-size:16px; padding:10px 16px; border:0; border-radius:8px; background:var(--acc); color:#000; font-weight:bold; }
-  button.sub { background:#333; color:var(--fg); font-weight:normal; }
-  button:disabled { opacity:.4; }
-  main { padding:12px 16px 24px; max-width:640px; margin:0 auto; }
-  .lanes { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
-  .lane { background:var(--card); border-radius:10px; padding:10px 8px; text-align:center; }
-  .lane .n { font-size:13px; color:var(--dim); }
-  .lane .t { font-size:26px; font-variant-numeric:tabular-nums; font-weight:bold; margin:4px 0; }
-  .lane .c { font-size:12px; color:var(--dim); }
-  .lane.flash { outline:2px solid var(--acc); }
-  h2 { font-size:14px; color:var(--dim); margin:18px 0 6px; font-weight:normal; }
-  #log { background:#000; border-radius:8px; padding:8px; height:40vh; overflow-y:auto; font:13px/1.4 ui-monospace,Consolas,monospace; white-space:pre-wrap; word-break:break-all; }
-  #log .rx { color:var(--fg); } #log .tx { color:var(--acc); } #log .sys { color:var(--dim); } #log .err { color:var(--ng); }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 16px; padding-top:calc(10px + env(safe-area-inset-top,0px)); background:#000; position:sticky; top:0; z-index:2; }
+  header h1 { font-size:16px; margin:0; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #conn { font-size:12px; color:var(--dim); }
+  #conn.on { color:var(--go); }
+  button { font:inherit; font-size:15px; padding:10px 14px; border:0; border-radius:10px; background:#2a333b; color:var(--fg); cursor:pointer; }
+  button.pri { background:var(--acc); color:#001018; font-weight:bold; }
+  button:disabled { opacity:.35; cursor:default; }
+  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  main { padding:12px 16px 32px; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  #nobt { display:none; background:#3a1d1f; padding:10px; border-radius:8px; font-size:14px; }
+
+  .status { display:flex; align-items:center; gap:12px; background:var(--card); border-radius:12px; padding:12px 14px; }
+  .status .lamp { width:14px; height:14px; border-radius:50%; background:var(--dim); flex:none; }
+  .status.signal .lamp { background:var(--warn); animation:blink .3s infinite alternate; }
+  .status.run .lamp { background:var(--go); }
+  @keyframes blink { to { opacity:.2; } }
+  @media (prefers-reduced-motion:reduce) { .status.signal .lamp { animation:none; } }
+  .status .txt { flex:1; font-size:15px; }
+  .status .clock { font-size:22px; font-variant-numeric:tabular-nums; font-weight:bold; }
+
+  .controls { display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; }
+  .controls button { padding:14px 8px; font-size:16px; }
+  #btnStart { background:var(--go); color:#00140a; font-weight:bold; font-size:18px; }
+
+  .lanes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+  .lane { background:var(--card); border-radius:12px; padding:10px 8px; text-align:center; border:2px solid transparent; transition:border-color .3s; }
+  .lane.flash { border-color:var(--acc); transition:none; }
+  .lane.off { opacity:.45; }
+  .lane .n { font-size:12px; color:var(--dim); }
+  .lane .laps { font-size:13px; margin-top:2px; }
+  .lane .last { font-size:clamp(20px,7vw,34px); font-weight:bold; font-variant-numeric:tabular-nums; margin:4px 0 2px; }
+  .lane .best { font-size:12px; color:var(--best); font-variant-numeric:tabular-nums; }
+
+  section h2 { font-size:13px; color:var(--dim); margin:0 0 6px; font-weight:normal; letter-spacing:.05em; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th,td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:right; font-size:15px; }
+  th { color:var(--dim); font-weight:normal; font-size:12px; }
+  td:first-child,th:first-child { text-align:left; }
+  tr.best td { color:var(--best); font-weight:bold; }
+  .empty { color:var(--dim); font-size:14px; padding:8px 0; }
+  .lapwrap { max-height:40vh; overflow-y:auto; background:var(--card); border-radius:12px; padding:4px 8px; }
+
+  details { background:var(--card); border-radius:12px; padding:10px 14px; }
+  summary { cursor:pointer; font-size:14px; color:var(--dim); }
+  .set { display:grid; grid-template-columns:7em minmax(0,1fr) 3.5em; align-items:center; gap:8px; margin-top:12px; font-size:14px; }
+  .set input[type=range] { width:100%; }
+  .set output { text-align:right; font-variant-numeric:tabular-nums; }
+  .hint { font-size:12px; color:var(--dim); margin:4px 0 0; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+
+  #log { background:#000; border-radius:8px; padding:8px; height:30vh; overflow-y:auto; font:12px/1.4 ui-monospace,Consolas,monospace; white-space:pre-wrap; word-break:break-all; margin-top:10px; }
+  #log .tx { color:var(--acc); } #log .sys { color:var(--dim); } #log .err { color:var(--ng); }
   .send { display:flex; gap:8px; margin-top:8px; }
-  .send input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid #444; background:#000; color:var(--fg); }
-  .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-  .quick button { font-size:14px; padding:6px 10px; }
-  #nobt { display:none; background:#422; padding:10px; border-radius:8px; margin-bottom:12px; font-size:14px; }
+  .send input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); }
 </style>
 </head>
 <body>
 <header>
-  <h1>MIC-LINK</h1>
-  <span id="state">未接続</span>
-  <button id="btnConn">接続</button>
+  <h1 id="title">MIC-LABO ラップタイマー</h1>
+  <span id="conn">未接続</span>
+  <button class="pri" id="btnConn">接続</button>
 </header>
 <main>
   <div id="nobt">このブラウザは Web Bluetooth に対応していません。Android は Chrome、iPhone は「Bluefy」アプリで開いてください。</div>
 
-  <h2>ラップ（メインボードの <code>LAP,レーン,秒</code> を表示）</h2>
+  <div class="status" id="status"><span class="lamp"></span><span class="txt" id="statusTxt">接続してください</span><span class="clock" id="clock"></span></div>
+
+  <div class="controls">
+    <button id="btnStart" disabled>スタート</button>
+    <button id="btnReset" disabled>リセット</button>
+    <button id="btnCal" disabled>基準取り直し</button>
+  </div>
+
   <div class="lanes" id="lanes"></div>
 
-  <h2>やりとり</h2>
-  <div id="log"></div>
-  <div class="send">
-    <input id="inp" placeholder="送る文字（@ で始まると XIAO への命令）" autocapitalize="off" autocomplete="off">
-    <button id="btnSend" disabled>送信</button>
-  </div>
-  <div class="quick">
-    <button class="sub" data-cmd="@PING">@PING</button>
-    <button class="sub" data-cmd="@INFO">@INFO</button>
-    <button class="sub" id="btnClear">表示を消す</button>
-  </div>
+  <section>
+    <h2>ラップ一覧（新しい順）</h2>
+    <div class="lapwrap"><table><thead><tr><th>周</th><th>レーン</th><th>ラップ</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table><div class="empty" id="lapEmpty">まだ記録がありません。スタートを押すか、そのまま走らせてください（フリー走行は 1 回目の通過から計測）。</div></div>
+  </section>
+
+  <details id="setBox">
+    <summary>設定</summary>
+    <div class="set"><label for="thr">感度（しきい値）</label><input type="range" id="thr" min="10" max="200" step="5" value="35"><output id="thrV">35</output></div>
+    <p class="hint">小さいほど敏感。誤検出が多いときは上げる。</p>
+    <div class="set"><label for="vol">通過音の大きさ</label><input type="range" id="vol" min="1" max="50" step="1" value="3"><output id="volV">3</output></div>
+    <div class="set"><label for="pip">ピピピの高さ</label><input type="range" id="pip" min="200" max="2700" step="50" value="1000"><output id="pipV">1000</output></div>
+    <p class="hint">単位は Hz。ブーは 2700Hz（いちばん大きく聞こえる高さ）で固定。</p>
+    <div class="row"><button id="btnBuu" disabled>ブーを試す</button></div>
+  </details>
+
+  <details>
+    <summary>通信の記録</summary>
+    <div id="log"></div>
+    <div class="send">
+      <input id="inp" placeholder="基板への命令（@ で始まると XIAO へ）" autocapitalize="off" autocomplete="off">
+      <button id="btnSend" disabled>送信</button>
+    </div>
+  </details>
 </main>
 <script>
-// MIC-LINK の Web ページ（2026-10-15）。XIAO の Nordic UART Service に Web Bluetooth でつなぐ。
-// 受信は行単位（改行まで）。送信は 1 行ずつ、末尾に改行を付ける。
+// MIC-LABO ラップタイマー（試作）の操作ページ（2026-10-15）
+// XIAO の MIC-LINK（Nordic UART Service）に Web Bluetooth でつなぎ、ラップタイマー基板と 1 行ずつやりとりする。
+// 基板 → ページ: HELLO / CFG / SIGNAL / GO / PASS,<レーン>,first / LAP,<レーン>,<周>,<秒>,<ベスト> / RESET / CAL
+// ページ → 基板: START / RESET / CAL / CFG? / THR n / VOL n / PIP n / BUU
 const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';  // スマホ → XIAO
-const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';  // XIAO → スマホ
+const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 const $ = id => document.getElementById(id);
-let dev = null, rxChar = null, rxBuf = '';
 const enc = new TextEncoder(), dec = new TextDecoder();
+let dev = null, rxChar = null, rxBuf = '', sendQ = Promise.resolve();
+let runStart = 0, clockTimer = 0;
+const seenLanes = new Set();
+const laps = [];  // {lane, no, sec, total}
 
 const lanes = [1, 2, 3].map(n => {
   const el = document.createElement('div');
-  el.className = 'lane';
-  el.innerHTML = `<div class="n">レーン ${n}</div><div class="t">--.---</div><div class="c">0 周</div>`;
+  el.className = 'lane off';
+  el.innerHTML = `<div class="n">レーン ${n}</div><div class="laps">0 周</div><div class="last">--.---</div><div class="best">ベスト --.---</div>`;
   $('lanes').appendChild(el);
-  return { el, count: 0 };
+  return { el, count: 0, best: 0, total: 0 };
 });
+const fmt = s => s ? s.toFixed(3) : '--.---';
 
-function log(text, cls) {
-  const d = document.createElement('div');
+function log(text, cls = '') {
+  const box = $('log'), d = document.createElement('div');
   d.className = cls;
-  const t = new Date().toTimeString().slice(0, 8);
-  d.textContent = `${t} ${cls === 'tx' ? '→ ' : cls === 'rx' ? '← ' : ''}${text}`;
-  const box = $('log');
+  d.textContent = `${new Date().toTimeString().slice(0, 8)} ${cls === 'tx' ? '→' : cls ? '' : '←'} ${text}`;
   const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
   box.appendChild(d);
   while (box.childNodes.length > 500) box.removeChild(box.firstChild);
   if (atBottom) box.scrollTop = box.scrollHeight;
 }
 
-function setState(on, text) {
-  $('state').textContent = text;
-  $('state').className = on ? 'on' : '';
-  $('btnConn').textContent = on ? '切断' : '接続';
-  $('btnSend').disabled = !on;
+function setStatus(kind, text) {
+  $('status').className = 'status ' + kind;
+  $('statusTxt').textContent = text;
+}
+function startClock(t0) {
+  runStart = t0;
+  clearInterval(clockTimer);
+  clockTimer = setInterval(() => { $('clock').textContent = ((performance.now() - runStart) / 1000).toFixed(1) + ' 秒'; }, 100);
+}
+function stopClock() { clearInterval(clockTimer); $('clock').textContent = ''; }
+
+function clearLaps() {
+  laps.length = 0;
+  lanes.forEach(l => { l.count = 0; l.best = 0; l.total = 0; });
+  render();
+}
+
+function render() {
+  lanes.forEach((l, i) => {
+    l.el.classList.toggle('off', !seenLanes.has(i + 1));
+    l.el.querySelector('.laps').textContent = `${l.count} 周`;
+    const last = laps.find(x => x.lane === i + 1);
+    l.el.querySelector('.last').textContent = fmt(last && last.sec);
+    l.el.querySelector('.best').textContent = 'ベスト ' + fmt(l.best);
+  });
+  $('lapEmpty').hidden = laps.length > 0;
+  $('lapBody').innerHTML = laps.map(x => {
+    const isBest = lanes[x.lane - 1] && x.sec === lanes[x.lane - 1].best;
+    return `<tr class="${isBest ? 'best' : ''}"><td>${x.no}</td><td>${x.lane}</td><td>${x.sec.toFixed(3)}</td><td>${x.total.toFixed(3)}</td></tr>`;
+  }).join('');
+}
+
+function flash(lane) {
+  const el = lanes[lane - 1] && lanes[lane - 1].el;
+  if (!el) return;
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 250);
+}
+
+function setCfg(name, v) {
+  const el = $(name);
+  if (!el || document.activeElement === el) return;
+  el.value = v; $(name + 'V').textContent = v;
 }
 
 function onLine(line) {
-  log(line, 'rx');
-  const m = line.match(/^LAP,(\d+),([\d.]+)/i);
-  if (m) {
-    const l = lanes[+m[1] - 1];
-    if (!l) return;
-    l.count++;
-    l.el.querySelector('.t').textContent = (+m[2]).toFixed(3);
-    l.el.querySelector('.c').textContent = `${l.count} 周`;
-    l.el.classList.add('flash');
-    setTimeout(() => l.el.classList.remove('flash'), 300);
+  log(line);
+  const f = line.split(',');
+  switch (f[0].toUpperCase()) {
+    case 'HELLO':
+      $('title').textContent = `${f[1] || 'ラップタイマー'} ${f[2] || ''} v${f[3] || ''}`;
+      break;
+    case 'CFG':
+      f.slice(1).forEach(kv => { const [k, v] = kv.split('='); setCfg(k, v); });
+      break;
+    case 'SIGNAL':
+      clearLaps(); stopClock(); setStatus('signal', 'スタート合図中…');
+      break;
+    case 'GO':
+      setStatus('run', '計測中（レース）'); startClock(performance.now());
+      break;
+    case 'PASS': {
+      const lane = +f[1];
+      seenLanes.add(lane);
+      setStatus('run', '計測中（フリー走行）'); startClock(performance.now());
+      flash(lane); render();
+      break;
+    }
+    case 'LAP': {
+      // LAP,<レーン>,<周>,<秒>,<ベスト>
+      const lane = +f[1], no = +f[2], sec = +f[3], best = +f[4];
+      const l = lanes[lane - 1];
+      if (!l) break;
+      seenLanes.add(lane);
+      l.count = no; l.best = best; l.total += sec;
+      laps.unshift({ lane, no, sec, total: l.total });
+      flash(lane); render();
+      break;
+    }
+    case 'RESET':
+      clearLaps(); stopClock(); setStatus('', '待機中');
+      break;
+    case 'CAL':
+      setStatus($('status').classList.contains('run') ? 'run' : '', '基準を取り直しました');
+      break;
   }
 }
 
 async function connect() {
   try {
     dev = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'MIC-LINK' }, { services: [NUS] }], optionalServices: [NUS] });
-    dev.addEventListener('gattserverdisconnected', () => { setState(false, '切断'); log('切断しました', 'sys'); });
-    setState(false, '接続中…');
-    const gatt = await dev.gatt.connect();
-    const svc = await gatt.getPrimaryService(NUS);
+    dev.addEventListener('gattserverdisconnected', onDisconnect);
+    $('conn').textContent = '接続中…';
+    const svc = await (await dev.gatt.connect()).getPrimaryService(NUS);
     rxChar = await svc.getCharacteristic(NUS_RX);
     const tx = await svc.getCharacteristic(NUS_TX);
     tx.addEventListener('characteristicvaluechanged', e => {
@@ -126,30 +247,51 @@ async function connect() {
       }
     });
     await tx.startNotifications();
-    setState(true, dev.name);
+    $('conn').textContent = dev.name; $('conn').className = 'on';
+    $('btnConn').textContent = '切断';
+    document.querySelectorAll('button:not(#btnConn)').forEach(b => b.disabled = false);
+    setStatus('', '待機中');
     log(`${dev.name} に接続しました`, 'sys');
-    send('@INFO');
+    send('CFG?');
   } catch (e) {
-    setState(false, '未接続');
-    if (e.name !== 'NotFoundError') log('接続できません: ' + e.name + ' ' + e.message, 'err');  // NotFoundError = 選ぶ画面で取り消した
+    $('conn').textContent = '未接続';
+    if (e.name !== 'NotFoundError') log('接続できません: ' + e.name + ' ' + e.message, 'err');
   }
 }
 
-async function send(text) {
+function onDisconnect() {
+  $('conn').textContent = '切断'; $('conn').className = '';
+  $('btnConn').textContent = '接続';
+  document.querySelectorAll('button:not(#btnConn)').forEach(b => b.disabled = true);
+  stopClock(); setStatus('', '切断しました。もう一度「接続」を押してください');
+  log('切断しました', 'sys');
+}
+
+// 送信は 1 行ずつ順番に（BLE の書き込みが重なるとエラーになる）
+function send(text) {
   if (!rxChar || !text) return;
-  const data = enc.encode(text + '\n');
-  try {
-    for (let i = 0; i < data.length; i += 20) await rxChar.writeValueWithResponse(data.slice(i, i + 20));
-    log(text, 'tx');
-  } catch (e) { log('送れません: ' + e.message, 'err'); }
+  sendQ = sendQ.then(async () => {
+    const data = enc.encode(text + '\n');
+    try {
+      for (let i = 0; i < data.length; i += 20) await rxChar.writeValueWithResponse(data.slice(i, i + 20));
+      log(text, 'tx');
+    } catch (e) { log('送れません: ' + e.message, 'err'); }
+  });
 }
 
 $('btnConn').onclick = () => (dev && dev.gatt.connected) ? dev.gatt.disconnect() : connect();
+$('btnStart').onclick = () => send('START');
+$('btnReset').onclick = () => send('RESET');
+$('btnCal').onclick = () => send('CAL');
+$('btnBuu').onclick = () => send('BUU');
+for (const [id, cmd] of [['thr', 'THR'], ['vol', 'VOL'], ['pip', 'PIP']]) {
+  $(id).addEventListener('input', () => { $(id + 'V').textContent = $(id).value; });
+  $(id).addEventListener('change', () => send(`${cmd} ${$(id).value}`));
+}
 $('btnSend').onclick = () => { send($('inp').value.trim()); $('inp').value = ''; };
 $('inp').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSend').onclick(); });
-document.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => send(b.dataset.cmd));
-$('btnClear').onclick = () => { $('log').innerHTML = ''; lanes.forEach(l => { l.count = 0; l.el.querySelector('.t').textContent = '--.---'; l.el.querySelector('.c').textContent = '0 周'; }); };
 if (!navigator.bluetooth) { $('nobt').style.display = 'block'; $('btnConn').disabled = true; }
+render();
 </script>
 </body>
 </html>

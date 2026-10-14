@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MIC-LINK</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --dim:#888; --card:#1d1d1d; --acc:#2bb3e6; --ok:#3c3; --ng:#e44; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif; }
+  header { display:flex; align-items:center; gap:8px; padding:12px 16px; background:#000; position:sticky; top:0; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  #state { font-size:13px; color:var(--dim); }
+  #state.on { color:var(--ok); }
+  button { font-size:16px; padding:10px 16px; border:0; border-radius:8px; background:var(--acc); color:#000; font-weight:bold; }
+  button.sub { background:#333; color:var(--fg); font-weight:normal; }
+  button:disabled { opacity:.4; }
+  main { padding:12px 16px 24px; max-width:640px; margin:0 auto; }
+  .lanes { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .lane { background:var(--card); border-radius:10px; padding:10px 8px; text-align:center; }
+  .lane .n { font-size:13px; color:var(--dim); }
+  .lane .t { font-size:26px; font-variant-numeric:tabular-nums; font-weight:bold; margin:4px 0; }
+  .lane .c { font-size:12px; color:var(--dim); }
+  .lane.flash { outline:2px solid var(--acc); }
+  h2 { font-size:14px; color:var(--dim); margin:18px 0 6px; font-weight:normal; }
+  #log { background:#000; border-radius:8px; padding:8px; height:40vh; overflow-y:auto; font:13px/1.4 ui-monospace,Consolas,monospace; white-space:pre-wrap; word-break:break-all; }
+  #log .rx { color:var(--fg); } #log .tx { color:var(--acc); } #log .sys { color:var(--dim); } #log .err { color:var(--ng); }
+  .send { display:flex; gap:8px; margin-top:8px; }
+  .send input { flex:1; min-width:0; font-size:16px; padding:10px; border-radius:8px; border:1px solid #444; background:#000; color:var(--fg); }
+  .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .quick button { font-size:14px; padding:6px 10px; }
+  #nobt { display:none; background:#422; padding:10px; border-radius:8px; margin-bottom:12px; font-size:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MIC-LINK</h1>
+  <span id="state">未接続</span>
+  <button id="btnConn">接続</button>
+</header>
+<main>
+  <div id="nobt">このブラウザは Web Bluetooth に対応していません。Android は Chrome、iPhone は「Bluefy」アプリで開いてください。</div>
+
+  <h2>ラップ（メインボードの <code>LAP,レーン,秒</code> を表示）</h2>
+  <div class="lanes" id="lanes"></div>
+
+  <h2>やりとり</h2>
+  <div id="log"></div>
+  <div class="send">
+    <input id="inp" placeholder="送る文字（@ で始まると XIAO への命令）" autocapitalize="off" autocomplete="off">
+    <button id="btnSend" disabled>送信</button>
+  </div>
+  <div class="quick">
+    <button class="sub" data-cmd="@PING">@PING</button>
+    <button class="sub" data-cmd="@INFO">@INFO</button>
+    <button class="sub" id="btnClear">表示を消す</button>
+  </div>
+</main>
+<script>
+// MIC-LINK の Web ページ（2026-10-15）。XIAO の Nordic UART Service に Web Bluetooth でつなぐ。
+// 受信は行単位（改行まで）。送信は 1 行ずつ、末尾に改行を付ける。
+const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';  // スマホ → XIAO
+const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';  // XIAO → スマホ
+const $ = id => document.getElementById(id);
+let dev = null, rxChar = null, rxBuf = '';
+const enc = new TextEncoder(), dec = new TextDecoder();
+
+const lanes = [1, 2, 3].map(n => {
+  const el = document.createElement('div');
+  el.className = 'lane';
+  el.innerHTML = `<div class="n">レーン ${n}</div><div class="t">--.---</div><div class="c">0 周</div>`;
+  $('lanes').appendChild(el);
+  return { el, count: 0 };
+});
+
+function log(text, cls) {
+  const d = document.createElement('div');
+  d.className = cls;
+  const t = new Date().toTimeString().slice(0, 8);
+  d.textContent = `${t} ${cls === 'tx' ? '→ ' : cls === 'rx' ? '← ' : ''}${text}`;
+  const box = $('log');
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  box.appendChild(d);
+  while (box.childNodes.length > 500) box.removeChild(box.firstChild);
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function setState(on, text) {
+  $('state').textContent = text;
+  $('state').className = on ? 'on' : '';
+  $('btnConn').textContent = on ? '切断' : '接続';
+  $('btnSend').disabled = !on;
+}
+
+function onLine(line) {
+  log(line, 'rx');
+  const m = line.match(/^LAP,(\d+),([\d.]+)/i);
+  if (m) {
+    const l = lanes[+m[1] - 1];
+    if (!l) return;
+    l.count++;
+    l.el.querySelector('.t').textContent = (+m[2]).toFixed(3);
+    l.el.querySelector('.c').textContent = `${l.count} 周`;
+    l.el.classList.add('flash');
+    setTimeout(() => l.el.classList.remove('flash'), 300);
+  }
+}
+
+async function connect() {
+  try {
+    dev = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'MIC-LINK' }, { services: [NUS] }], optionalServices: [NUS] });
+    dev.addEventListener('gattserverdisconnected', () => { setState(false, '切断'); log('切断しました', 'sys'); });
+    setState(false, '接続中…');
+    const gatt = await dev.gatt.connect();
+    const svc = await gatt.getPrimaryService(NUS);
+    rxChar = await svc.getCharacteristic(NUS_RX);
+    const tx = await svc.getCharacteristic(NUS_TX);
+    tx.addEventListener('characteristicvaluechanged', e => {
+      rxBuf += dec.decode(e.target.value);
+      let i;
+      while ((i = rxBuf.search(/[\r\n]/)) >= 0) {
+        const line = rxBuf.slice(0, i).trim();
+        rxBuf = rxBuf.slice(i + 1);
+        if (line) onLine(line);
+      }
+    });
+    await tx.startNotifications();
+    setState(true, dev.name);
+    log(`${dev.name} に接続しました`, 'sys');
+    send('@INFO');
+  } catch (e) {
+    setState(false, '未接続');
+    if (e.name !== 'NotFoundError') log('接続できません: ' + e.name + ' ' + e.message, 'err');  // NotFoundError = 選ぶ画面で取り消した
+  }
+}
+
+async function send(text) {
+  if (!rxChar || !text) return;
+  const data = enc.encode(text + '\n');
+  try {
+    for (let i = 0; i < data.length; i += 20) await rxChar.writeValueWithResponse(data.slice(i, i + 20));
+    log(text, 'tx');
+  } catch (e) { log('送れません: ' + e.message, 'err'); }
+}
+
+$('btnConn').onclick = () => (dev && dev.gatt.connected) ? dev.gatt.disconnect() : connect();
+$('btnSend').onclick = () => { send($('inp').value.trim()); $('inp').value = ''; };
+$('inp').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSend').onclick(); });
+document.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => send(b.dataset.cmd));
+$('btnClear').onclick = () => { $('log').innerHTML = ''; lanes.forEach(l => { l.count = 0; l.el.querySelector('.t').textContent = '--.---'; l.el.querySelector('.c').textContent = '0 周'; }); };
+if (!navigator.bluetooth) { $('nobt').style.display = 'block'; $('btnConn').disabled = true; }
+</script>
+</body>
+</html>
