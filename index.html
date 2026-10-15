@@ -56,6 +56,8 @@
   .empty { color:var(--dim); font-size:14px; padding:8px 0; }
 
   .verdict { border:2px solid var(--warn); }
+  .swtime { font-size:clamp(36px,12vw,60px); font-weight:bold; font-variant-numeric:tabular-nums; text-align:center; margin:2px 0 6px; }
+  .swtime.run { color:var(--go); }
   .verdict h2 { font-size:16px; margin:0 0 4px; }
   .verdict p { margin:0 0 8px; font-size:14px; color:var(--dim); }
   .verdict textarea { width:100%; font:inherit; font-size:16px; padding:8px; border-radius:8px; border:1px solid var(--line); background:#000; color:var(--fg); }
@@ -140,6 +142,22 @@
       <table><thead><tr><th>周</th><th>区間</th><th>1 周平均</th><th>合計</th></tr></thead><tbody id="lapBody"></tbody></table>
       <div class="empty" id="lapEmpty">「測定開始」か「シグナルスタート」を押してから走らせてください。押す前はセンサーが反応しても測りません（右上の「センサー」が光るだけ）。</div>
     </div>
+
+    <!-- ストップウォッチ。基板の SW5（スタート/ストップ）と SW6（ラップ、止まっていればリセット）で動く。
+         センサーの計測とは別。レーン数・周回数とは関係なく「ラップ 1, 2, 3 … とトータル」で残す（2026-10-15 ユーザー指定） -->
+    <div class="card" id="swCard">
+      <h3>ストップウォッチ（基板の SW5：スタート／ストップ、SW6：ラップ・リセット）</h3>
+      <div class="swtime" id="swTime">0.000</div>
+      <table><tbody id="swBody"></tbody></table>
+      <div class="verdict" id="swSave" hidden style="margin-top:10px;padding:10px;border-radius:10px">
+        <p style="margin:0 0 8px" id="swSummary"></p>
+        <textarea id="swMemo" rows="2" placeholder="メモ（任意）"></textarea>
+        <div class="vbtns" style="grid-template-columns:1fr 1fr">
+          <button class="go" id="swKeep">記録に残す</button>
+          <button id="swDrop">破棄</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ===== 記録（このスマホのブラウザにだけ保存） ===== -->
@@ -208,6 +226,9 @@ let run = null;       // 今の走行 {target:周, L:1 区間の周数, laps:[�
 let pending = null;   // 判定待ちの走行
 let shown = null;     // 終わった走行も、次の測定開始までは表示しておく
 let history = [];
+// ストップウォッチ {running, startAt(performance.now 基準), laps:[ms], totalMs}
+let sw = { running: false, startAt: 0, laps: [], totalMs: 0 };
+let swPending = null;
 
 const sec = ms => (ms / 1000).toFixed(3);
 const store = {
@@ -271,6 +292,7 @@ function fixLaps() {
 
 function tick() {
   if (devState === 'RUNNING' && goAt) $('time').textContent = sec(performance.now() - goAt);
+  if (sw.running) $('swTime').textContent = sec(performance.now() - sw.startAt);
   raf = requestAnimationFrame(tick);
 }
 
@@ -294,14 +316,25 @@ function decide(result) {
   renderState();
 }
 
+function renderSw() {
+  $('swTime').classList.toggle('run', sw.running);
+  if (!sw.running) $('swTime').textContent = sec(sw.totalMs);
+  const best = sw.laps.length > 1 ? Math.min(...sw.laps) : 0;
+  const rows = sw.laps.map((ms, i) => `<tr class="${ms === best ? 'best' : ''}"><td>ラップ ${i + 1}</td><td class="lap">${sec(ms)}</td></tr>`);
+  if (!sw.running && sw.totalMs) rows.push(`<tr><td><b>トータル</b></td><td><b>${sec(sw.totalMs)}</b></td></tr>`);
+  $('swBody').innerHTML = rows.join('');
+}
+const swText = h => h.laps.map((ms, i) => `ラップ${i + 1} ${sec(ms)}`).join(' / ');
+
 function renderHist() {
-  const fin = history.filter(h => h.result === 'finish' && h.reached);
-  const allLaps = history.flatMap(h => h.laps.map(ms => ms / (h.L || 1)));
-  $('sRuns').textContent = history.length;
+  const runs = history.filter(h => h.kind !== 'sw');  // 統計はセンサーの計測だけ
+  const fin = runs.filter(h => h.result === 'finish' && h.reached);
+  const allLaps = runs.flatMap(h => h.laps.map(ms => ms / (h.L || 1)));
+  $('sRuns').textContent = runs.length;
   $('sBest').textContent = fin.length ? sec(Math.min(...fin.map(h => h.totalMs))) : '--';
   $('sAvg').textContent = fin.length ? sec(fin.reduce((a, h) => a + h.totalMs, 0) / fin.length) : '--';
   $('sBestLap').textContent = allLaps.length ? sec(Math.min(...allLaps)) : '--';
-  const firsts = history.filter(h => h.firstMs).map(h => h.firstMs);
+  const firsts = runs.filter(h => h.firstMs).map(h => h.firstMs);
   $('sFirst').textContent = firsts.length ? sec(Math.min(...firsts)) : '--';
   $('histEmpty').hidden = history.length > 0;
   $('histBody').innerHTML = history.map((h, i) => {
@@ -309,6 +342,9 @@ function renderHist() {
     const t = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     const res = h.result === 'finish' ? '<span class="ok">完走</span>' : '<span class="co">CO</span>';
     const memo = h.memo ? `<span class="memo">${h.memo.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</span>` : '';
+    if (h.kind === 'sw')
+      return `<tr><td>${i + 1}</td><td>${t}</td><td class="res">ストップ<br>ウォッチ</td>` +
+        `<td>${sec(h.totalMs)}<span class="laps">${swText(h)} / トータル ${sec(h.totalMs)}</span>${memo}</td><td><button data-del="${i}">消す</button></td></tr>`;
     return `<tr><td>${i + 1}</td><td>${t}</td><td class="res">${res}<span class="laps">${h.laps.length * (h.L || 1)}/${h.target} 周</span></td>` +
       `<td>${sec(h.totalMs)}<span class="laps">${h.firstMs ? '出だし ' + sec(h.firstMs) + ' / ' : ''}${h.laps.map(sec).join(' / ')}</span>${memo}</td><td><button data-del="${i}">消す</button></td></tr>`;
   }).reverse().join('');
@@ -375,6 +411,23 @@ function onLine(line) {
       break;
     }
     case 'CAL': log('センサーの基準を取り直しました', 'sys'); break;
+    case 'SW':
+      // SW,START / SW,LAP,<番号>,<ラップms>,<合計ms> / SW,STOP,<合計ms>,<ラップms>... / SW,RESET / SW,RUN,<経過ms>,<ラップ数>
+      switch (f[1]) {
+        case 'START': sw = { running: true, startAt: performance.now(), laps: [], totalMs: 0 }; swPending = null; $('swSave').hidden = true; break;
+        case 'RUN': if (!sw.running) sw = { running: true, startAt: performance.now() - +f[2], laps: [], totalMs: 0 }; break;
+        case 'LAP': sw.running = true; sw.laps[+f[2] - 1] = +f[3]; sw.startAt = performance.now() - +f[4]; break;
+        case 'STOP':
+          sw = { running: false, startAt: 0, totalMs: +f[2], laps: f.slice(3).map(Number) };
+          swPending = { ...sw };
+          $('swSummary').textContent = `トータル ${sec(sw.totalMs)} 秒（ラップ ${sw.laps.length} 本）。記録に残しますか？`;
+          $('swMemo').value = '';
+          $('swSave').hidden = false;
+          break;
+        case 'RESET': sw = { running: false, startAt: 0, laps: [], totalMs: 0 }; break;
+      }
+      renderSw();
+      break;
     case 'ERR': log('基板がエラーを返しました: ' + line, 'err'); break;
   }
 }
@@ -465,10 +518,21 @@ $('histBody').addEventListener('click', e => {
 });
 $('btnClearAsk').onclick = () => { $('btnClearYes').hidden = false; setTimeout(() => $('btnClearYes').hidden = true, 4000); };
 $('btnClearYes').onclick = () => { history = []; store.set(HIST_KEY, history); renderHist(); $('btnClearYes').hidden = true; };
+$('swKeep').onclick = () => {
+  if (!swPending) return;
+  history.push({ at: Date.now(), kind: 'sw', laps: swPending.laps, totalMs: swPending.totalMs, memo: $('swMemo').value.trim() });
+  store.set(HIST_KEY, history); renderHist();
+  swPending = null; $('swSave').hidden = true;
+};
+$('swDrop').onclick = () => { swPending = null; $('swSave').hidden = true; };
 $('btnCopy').onclick = async () => {
   const maxL = Math.max(0, ...history.map(h => h.laps.length));
-  const head = ['日時', '結果', '走った周', '規定周回', 'コースのレーン数', '合計秒', '出だし秒', ...Array.from({ length: maxL }, (_, i) => `区間${i + 1}`), 'メモ'];
-  const rows = history.map(h => [new Date(h.at).toLocaleString('ja-JP'), h.result === 'finish' ? '完走' : 'コースアウト', h.laps.length * (h.L || 1), h.target, h.L || 1, sec(h.totalMs), h.firstMs ? sec(h.firstMs) : '',
+  // ストップウォッチの行は「区間」列にラップ 1, 2, 3 … を入れる（周回数などは空）
+  const head = ['日時', '種類', '結果', '走った周', '規定周回', 'コースのレーン数', '合計秒', '出だし秒', ...Array.from({ length: maxL }, (_, i) => `区間${i + 1}`), 'メモ'];
+  const rows = history.map(h => h.kind === 'sw'
+    ? [new Date(h.at).toLocaleString('ja-JP'), 'ストップウォッチ', '', '', '', '', sec(h.totalMs), '',
+       ...Array.from({ length: maxL }, (_, i) => h.laps[i] ? sec(h.laps[i]) : ''), '"' + (h.memo || '').replace(/"/g, '""') + '"']
+    : [new Date(h.at).toLocaleString('ja-JP'), 'センサー', h.result === 'finish' ? '完走' : 'コースアウト', h.laps.length * (h.L || 1), h.target, h.L || 1, sec(h.totalMs), h.firstMs ? sec(h.firstMs) : '',
     ...Array.from({ length: maxL }, (_, i) => h.laps[i] ? sec(h.laps[i]) : ''), '"' + (h.memo || '').replace(/"/g, '""') + '"']);
   const csv = [head, ...rows].map(r => r.join(',')).join('\n');
   try { await navigator.clipboard.writeText(csv); $('btnCopy').textContent = 'コピーしました'; }
@@ -484,7 +548,7 @@ lanesHint(); fixLaps();
 history = store.get(HIST_KEY, []);
 if (!navigator.bluetooth) { $('nobt').hidden = false; $('btnConn').disabled = true; }
 showTab('Run');
-renderRun(); renderHist(); renderState();
+renderRun(); renderHist(); renderState(); renderSw();
 tick();
 </script>
 </body>
