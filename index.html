@@ -381,7 +381,7 @@ function onLine(line) {
 
 async function connect() {
   try {
-    dev = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'MIC-LINK' }, { services: [NUS] }], optionalServices: [NUS] });
+    dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [NUS] }], optionalServices: [NUS] });
     dev.addEventListener('gattserverdisconnected', onDisconnect);
     $('conn').textContent = '接続中…';
     const svc = await (await dev.gatt.connect()).getPrimaryService(NUS);
